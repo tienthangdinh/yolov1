@@ -1,11 +1,22 @@
+"""
+Implementation of Yolo Loss Function from the original yolo paper
+
+"""
+
 import torch
 import torch.nn as nn
 from utils import intersection_over_union
 
+
 class YoloLoss(nn.Module):
+    """
+    Calculate the loss for yolo (v1) model
+    """
+
     def __init__(self, S=7, B=2, C=20):
-        super().__init__()
+        super(YoloLoss, self).__init__()
         self.mse = nn.MSELoss(reduction="sum")
+
         """
         S is split size of image (in paper 7),
         B is number of boxes (in paper 2),
@@ -15,6 +26,8 @@ class YoloLoss(nn.Module):
         self.B = B
         self.C = C
 
+        # These are from Yolo paper, signifying how much we should
+        # pay loss for no object (noobj) and the box coordinates (coord)
         self.lambda_noobj = 0.5
         self.lambda_coord = 5
 
@@ -44,6 +57,14 @@ class YoloLoss(nn.Module):
                 + (1 - bestbox) * predictions[..., 21:25]
             )
         )
+
+        box_targets = exists_box * target[..., 21:25]
+
+        # Take sqrt of width, height of boxes to ensure that
+        box_predictions[..., 2:4] = torch.sign(box_predictions[..., 2:4]) * torch.sqrt(
+            torch.abs(box_predictions[..., 2:4] + 1e-6)
+        )
+        box_targets[..., 2:4] = torch.sqrt(box_targets[..., 2:4])
 
         box_loss = self.mse(
             torch.flatten(box_predictions, end_dim=-2),
